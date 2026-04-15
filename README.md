@@ -191,6 +191,32 @@ npx wrangler d1 execute book --local --file=schema.sql
 后台登录凭据存放在 `NAV_AUTH` KV 中的 `admin_username` 与 `admin_password` 两个键内。登录 `/admin` 时需要在页面表单中输入账号与密码，系统会返回一个 **HttpOnly 会话 Cookie（默认 1 天，可选 1/7/30/60/90 天）**，无需也不再支持在 URL 查询参数中传递凭据。点击后台右上角的 **"退出登录"** 按钮即可立即销毁会话。
 
 ---
+## add 1
+## 从action运行直接部署到pages
+
+**注意: 不可与链接仓库的部署方式同时存在**，也就说，要使用此方式部署，必须在CF后台断开该项目与 github 的链接
+
+## 特性
+- 自动化程度更高，可自动设置项目名，初始化d1，kv写入管理员账号密码
+- 直接在日志中输出部署后的项目地址和设定的用户名、密码
+- 仓库中 functions 和 public 文件夹中内容变动时，会触发自动部署
+
+## 需要的变量
+
+**在action的Variables中填写，不是secret**
+
+因为secret中的内容不可见，也不可修改，不便于排查错误；而Variables是可编辑的，方便排查与修改变量
+
+- CLOUDFLARE_API_TOKEN: 必须，需具有 worker pages kv d1 dns解析权限，或使用全局token
+- CLOUDFLARE_ACCOUNT_ID: 必须，CF账号ID
+- PROJECT_NAME: 可选，pages项目名，默认为 iori-nav
+- NAV_D1_NAME: 必须，D1数据库名
+- NAV_D1_ID: 必须，D1数据库ID
+- NAV_KV_ID: 必须，KV空间ID
+- ADMIN_USER: 可选，管理员用户名，默认 admin
+- ADMIN_PASS: 可选，管理员密码，默认 admin123
+- CUSTOM_DOMAIN: 可选，项目自定义域名
+
 
 ## ❗ 常见部署问题
 
