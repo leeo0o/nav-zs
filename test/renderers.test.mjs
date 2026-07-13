@@ -259,6 +259,16 @@ test('style three search focus suppresses the transient Tailwind ring', () => {
   assert.match(css, /body\.mobile-page-style3 \.search-input-target:focus,[\s\S]*?border-color:\s*transparent\s*!important;[\s\S]*?--tw-ring-shadow:\s*0 0 #0000\s*!important/);
 });
 
+test('horizontal category overflow keeps at least one visible category', () => {
+  const source = readFileSync('public/js/home-category-nav.js', 'utf8');
+
+  assert.match(source, /ROW_TOLERANCE_PX/);
+  assert.match(source, /getBoundingClientRect\(\)\.top/);
+  assert.match(source, /currentCategories\.length === 1/);
+  assert.match(source, /enableMultiLineFallback|maxHeight = 'none'/);
+  assert.match(source, /singleLineMaxHeight/);
+});
+
 test('style three top navigation keeps the single-line overflow menu available', () => {
   const css = readFileSync('public/css/style.css', 'utf8');
 

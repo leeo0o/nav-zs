@@ -1120,7 +1120,8 @@ body .search-engine-option.active {
   body.desktop-page-style3 #horizontalCategoryNav {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    /* flex-start 避免 height:auto 时同行 offsetTop 不一致误触发溢出折叠 */
+    align-items: flex-start;
     justify-content: center;
     gap: 0.15rem 0.45rem;
   }
@@ -1391,6 +1392,7 @@ body .search-engine-option.active {
   body.mobile-page-style3 #horizontalCategoryNav {
     display: flex;
     flex-wrap: wrap;
+    align-items: flex-start;
     justify-content: center;
     gap: 0.1rem;
   }

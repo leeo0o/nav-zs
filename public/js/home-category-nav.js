@@ -24,16 +24,37 @@
         moreBtn.classList.add('inactive');
       };
 
+      // 单行模式的原始 max-height（来自 SSR inline style），用于每次重算前恢复
+      const singleLineMaxHeight = navContainer.style.maxHeight || '60px';
+      // 风格三 height:auto + align-items:center 时，同行元素 offsetTop 可能差几像素，
+      // 严格相等会把「未换行」误判为换行，最终把全部分类塞进「更多」只剩三个点。
+      const ROW_TOLERANCE_PX = 6;
+
+      const getCategories = () => Array.from(navContainer.children).filter(el => el !== moreWrapper);
+
+      const getRowTop = (el) => el.getBoundingClientRect().top;
+
+      const isSameRow = (a, b) => Math.abs(getRowTop(a) - getRowTop(b)) <= ROW_TOLERANCE_PX;
+
+      const enableMultiLineFallback = () => {
+        resetNav();
+        navContainer.style.maxHeight = 'none';
+        navContainer.style.overflow = 'visible';
+      };
+
       checkOverflow = () => {
         resetNav();
+        // 恢复单行约束后再测量（避免上次 fallback 的 inline 样式残留）
+        navContainer.style.maxHeight = singleLineMaxHeight;
+        navContainer.style.overflow = 'hidden';
 
-        const navChildren = Array.from(navContainer.children).filter(el => el !== moreWrapper);
+        const navChildren = getCategories();
         if (navChildren.length === 0) return;
 
-        const firstTop = navChildren[0].offsetTop;
+        const firstItem = navChildren[0];
         const lastItem = navChildren[navChildren.length - 1];
 
-        if (lastItem.offsetTop === firstTop) {
+        if (isSameRow(firstItem, lastItem)) {
           navContainer.style.overflow = 'visible';
           return;
         }
@@ -41,16 +62,18 @@
         moreWrapper.classList.remove('hidden');
 
         while (true) {
-          const currentCategories = Array.from(navContainer.children).filter(el => el !== moreWrapper && el.style.display !== 'none');
+          const currentCategories = getCategories();
           if (currentCategories.length === 0) break;
 
+          const rowAnchor = currentCategories[0];
           const lastCategory = currentCategories[currentCategories.length - 1];
-          const moreWrapperWraps = moreWrapper.offsetTop > firstTop;
-          const lastCategoryWraps = lastCategory.offsetTop > firstTop;
+          const moreWrapperWraps = !isSameRow(rowAnchor, moreWrapper);
+          const lastCategoryWraps = !isSameRow(rowAnchor, lastCategory);
 
-          if (!moreWrapperWraps && !lastCategoryWraps) {
-            break;
-          }
+          if (!moreWrapperWraps && !lastCategoryWraps) break;
+
+          // 至少保留一个可见分类，避免界面只剩「···」
+          if (currentCategories.length === 1) break;
 
           if (!lastCategory.dataset.originalClass) {
             lastCategory.dataset.originalClass = lastCategory.className;
@@ -67,6 +90,13 @@
           }
 
           dropdown.insertBefore(lastCategory, dropdown.firstChild);
+        }
+
+        const remaining = getCategories();
+        // 仍无法把 more 放进首行时，退回多行展示全部分类
+        if (remaining.length === 0 || (remaining.length > 0 && !isSameRow(remaining[0], moreWrapper))) {
+          enableMultiLineFallback();
+          return;
         }
 
         const activeInDropdown = dropdown.querySelector('.active');
