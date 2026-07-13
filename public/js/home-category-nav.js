@@ -10,6 +10,7 @@
     let checkOverflow = () => { };
     let resetNav = () => { };
 
+    // moreWrapper 仅在设置「分类展示=单行」时由 SSR 输出；多行模式无此节点，不进入折叠逻辑
     if (navContainer && moreWrapper && moreBtn && dropdown) {
       resetNav = () => {
         const dropdownItems = Array.from(dropdown.children);
@@ -26,94 +27,112 @@
 
       // 单行模式的原始 max-height（来自 SSR inline style），用于每次重算前恢复
       const singleLineMaxHeight = navContainer.style.maxHeight || '60px';
-      // 风格三 height:auto + align-items:center 时，同行元素 offsetTop 可能差几像素，
-      // 严格相等会把「未换行」误判为换行，最终把全部分类塞进「更多」只剩三个点。
-      const ROW_TOLERANCE_PX = 6;
 
       const getCategories = () => Array.from(navContainer.children).filter(el => el !== moreWrapper);
 
-      const getRowTop = (el) => el.getBoundingClientRect().top;
+      const fitsSingleLine = () => {
+        // 用内容高度判断是否换行：不依赖 offsetTop。
+        // 风格三 height:auto 时同行元素 top 可能差几 px，offsetTop 严格比较会把全部分类误塞进「更多」。
+        // 单行/多行由后台设置决定：多行时 SSR 不渲染 moreWrapper，本逻辑不会执行。
+        void navContainer.offsetWidth; // 强制布局，避免正式环境字体未就绪时量到 0
+        return navContainer.scrollHeight <= navContainer.clientHeight + 2;
+      };
 
-      const isSameRow = (a, b) => Math.abs(getRowTop(a) - getRowTop(b)) <= ROW_TOLERANCE_PX;
+      const moveCategoryToDropdown = (lastCategory) => {
+        if (!lastCategory.dataset.originalClass) {
+          lastCategory.dataset.originalClass = lastCategory.className;
+        }
 
-      const enableMultiLineFallback = () => {
-        resetNav();
-        navContainer.style.maxHeight = 'none';
-        navContainer.style.overflow = 'visible';
+        lastCategory.className = 'menu-item-wrapper block w-full relative';
+
+        const link = lastCategory.querySelector('a');
+        if (link) {
+          link.dataset.originalClass = link.className;
+          const isActive = link.classList.contains('active');
+          link.className = 'dropdown-item w-full text-left px-4 py-2 text-sm';
+          if (isActive) link.classList.add('active');
+        }
+
+        dropdown.insertBefore(lastCategory, dropdown.firstChild);
+      };
+
+      const restoreCategoryFromDropdown = () => {
+        const item = dropdown.firstElementChild;
+        if (!item) return null;
+        if (item.dataset.originalClass) item.className = item.dataset.originalClass;
+        const link = item.querySelector('a');
+        if (link && link.dataset.originalClass) link.className = link.dataset.originalClass;
+        navContainer.insertBefore(item, moreWrapper);
+        return item;
       };
 
       checkOverflow = () => {
         resetNav();
-        // 恢复单行约束后再测量（避免上次 fallback 的 inline 样式残留）
         navContainer.style.maxHeight = singleLineMaxHeight;
         navContainer.style.overflow = 'hidden';
 
         const navChildren = getCategories();
         if (navChildren.length === 0) return;
 
-        const firstItem = navChildren[0];
-        const lastItem = navChildren[navChildren.length - 1];
+        // 布局未完成时跳过，避免错误折叠；后续 fonts/ResizeObserver 会再算
+        if (navContainer.clientWidth < 48) {
+          navContainer.style.overflow = 'visible';
+          return;
+        }
 
-        if (isSameRow(firstItem, lastItem)) {
+        // 不显示「更多」时已能单行放下，保持全部可见
+        if (fitsSingleLine()) {
           navContainer.style.overflow = 'visible';
           return;
         }
 
         moreWrapper.classList.remove('hidden');
 
-        while (true) {
-          const currentCategories = getCategories();
-          if (currentCategories.length === 0) break;
-
-          const rowAnchor = currentCategories[0];
-          const lastCategory = currentCategories[currentCategories.length - 1];
-          const moreWrapperWraps = !isSameRow(rowAnchor, moreWrapper);
-          const lastCategoryWraps = !isSameRow(rowAnchor, lastCategory);
-
-          if (!moreWrapperWraps && !lastCategoryWraps) break;
-
-          // 至少保留一个可见分类，避免界面只剩「···」
-          if (currentCategories.length === 1) break;
-
-          if (!lastCategory.dataset.originalClass) {
-            lastCategory.dataset.originalClass = lastCategory.className;
-          }
-
-          lastCategory.className = 'menu-item-wrapper block w-full relative';
-
-          const link = lastCategory.querySelector('a');
-          if (link) {
-            link.dataset.originalClass = link.className;
-            const isActive = link.classList.contains('active');
-            link.className = 'dropdown-item w-full text-left px-4 py-2 text-sm';
-            if (isActive) link.classList.add('active');
-          }
-
-          dropdown.insertBefore(lastCategory, dropdown.firstChild);
+        // 从末尾移入下拉，直到单行可容纳（分类 + 更多）
+        while (getCategories().length > 1 && !fitsSingleLine()) {
+          moveCategoryToDropdown(getCategories()[getCategories().length - 1]);
         }
 
-        const remaining = getCategories();
-        // 仍无法把 more 放进首行时，退回多行展示全部分类
-        if (remaining.length === 0 || (remaining.length > 0 && !isSameRow(remaining[0], moreWrapper))) {
-          enableMultiLineFallback();
-          return;
+        // 禁止只剩「···」：若一个分类都没有，至少还原一个
+        if (getCategories().length === 0) {
+          restoreCategoryFromDropdown();
         }
 
+        // 仍放不下时，继续保持至少一个分类 + 更多（允许轻微溢出）由 overflow 控制
         const activeInDropdown = dropdown.querySelector('.active');
         if (activeInDropdown) {
           moreBtn.classList.add('active');
           moreBtn.classList.remove('inactive');
           moreBtn.classList.add('text-primary-600', 'bg-secondary-100');
+        } else {
+          moreBtn.classList.remove('active', 'text-primary-600', 'bg-secondary-100');
+          moreBtn.classList.add('inactive');
         }
 
         navContainer.style.overflow = 'visible';
       };
 
-      setTimeout(checkOverflow, 100);
-      window.addEventListener('resize', () => {
+      const scheduleOverflowCheck = () => {
         clearTimeout(window.resizeTimer);
-        window.resizeTimer = setTimeout(checkOverflow, 100);
+        window.resizeTimer = setTimeout(checkOverflow, 50);
+      };
+
+      // 首屏多次测量：覆盖字体加载与异步布局（正式环境比本地更易晚就绪）
+      requestAnimationFrame(() => {
+        requestAnimationFrame(checkOverflow);
       });
+      setTimeout(checkOverflow, 100);
+      setTimeout(checkOverflow, 400);
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(scheduleOverflowCheck).catch(() => {});
+      }
+
+      window.addEventListener('resize', scheduleOverflowCheck);
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(scheduleOverflowCheck);
+        ro.observe(navContainer);
+        if (navContainer.parentElement) ro.observe(navContainer.parentElement);
+      }
 
       moreBtn.addEventListener('click', (e) => {
         e.stopPropagation();

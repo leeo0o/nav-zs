@@ -259,14 +259,19 @@ test('style three search focus suppresses the transient Tailwind ring', () => {
   assert.match(css, /body\.mobile-page-style3 \.search-input-target:focus,[\s\S]*?border-color:\s*transparent\s*!important;[\s\S]*?--tw-ring-shadow:\s*0 0 #0000\s*!important/);
 });
 
-test('horizontal category overflow keeps at least one visible category', () => {
+test('horizontal category overflow uses scroll height and keeps at least one category', () => {
   const source = readFileSync('public/js/home-category-nav.js', 'utf8');
 
-  assert.match(source, /ROW_TOLERANCE_PX/);
-  assert.match(source, /getBoundingClientRect\(\)\.top/);
-  assert.match(source, /currentCategories\.length === 1/);
-  assert.match(source, /enableMultiLineFallback|maxHeight = 'none'/);
+  // 用 scrollHeight/clientHeight 判断单行，避免风格三 height:auto 时 offsetTop 误判
+  assert.match(source, /scrollHeight\s*<=\s*navContainer\.clientHeight/);
+  assert.match(source, /fitsSingleLine/);
+  assert.match(source, /getCategories\(\)\.length === 0/);
+  assert.match(source, /restoreCategoryFromDropdown/);
   assert.match(source, /singleLineMaxHeight/);
+  assert.match(source, /document\.fonts/);
+  assert.match(source, /ResizeObserver/);
+  // 风格三仍走单行更多折叠，不得整页禁用
+  assert.doesNotMatch(source, /isStyle3NavActive/);
 });
 
 test('style three top navigation keeps the single-line overflow menu available', () => {
