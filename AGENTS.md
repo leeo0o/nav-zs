@@ -20,7 +20,7 @@ iori-nav/
 │   ├── constants.js        # SCHEMA_VERSION / HOME_CACHE_VERSION / DB_SCHEMA 等核心常量
 │   ├── admin/              # 管理后台（login.js, logout.js, index.js）
 │   ├── api/                # REST API（categories/, config/, pending/, cache/, settings.js, wallpaper.js 等）
-│   └── lib/                # 共用工具（card-renderer, menu-renderer, schema-migration, settings-parser, utils, wallpaper-fetcher）
+│   └── lib/                # 共用工具（card-renderer, menu-renderer, schema-migration, settings-parser, utils）
 ├── public/                 # 静态资源（构建输出目录）
 │   ├── index.html          # 首页 SSR 模板
 │   ├── _headers            # Cloudflare Pages 响应头（静态资源长缓存配置）
@@ -43,6 +43,15 @@ npm run build:css
 
 # 启动本地开发服务器
 npm run dev
+
+# 安装 Playwright 浏览器（首次运行 e2e 前执行一次）
+npx playwright install chromium
+
+# 端到端测试（Playwright，会自动拉起本地 dev server 并在结束后关闭）
+npm run test:e2e
+
+# 含后台管理用例（凭据从环境变量读取，未设置时登录相关用例自动跳过）
+E2E_ADMIN_USER=xxx E2E_ADMIN_PASS=yyy npm run test:e2e
 
 # 本地执行 SQL
 npx wrangler d1 execute book --local --file=schema.sql
